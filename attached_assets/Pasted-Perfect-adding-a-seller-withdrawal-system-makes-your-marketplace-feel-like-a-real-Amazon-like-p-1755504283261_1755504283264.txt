@@ -1,0 +1,291 @@
+Perfect 👌 — adding a seller withdrawal system makes your marketplace feel like a real Amazon-like platform. Let’s update the full requirement specification with this payout feature (PayPal or bank transfer, with a 7% platform fee).
+
+
+---
+
+📌 Full Requirement Specification: ProAce International Shopping
+
+Tech Stack:
+
+Frontend → React (React Router, Redux Toolkit, Axios, Tailwind/Material-UI)
+
+Backend → Flask (REST API with SQLAlchemy, Flask-JWT-Extended)
+
+Database → PostgreSQL
+
+
+
+---
+
+🔹 Functional Requirements
+
+0. Landing Page
+
+Branded as ProAce International Shopping.
+
+Hero section, feature highlights, categories preview, testimonials, and CTAs (“Start Shopping” / “Become a Seller”).
+
+Footer with company info, About, Contact, Terms, Privacy Policy.
+
+
+
+---
+
+1. User Roles
+
+Buyer → browse, checkout, track orders, review products.
+
+Seller → register with business details, get verified, manage products, process orders, ship & track, manage payouts.
+
+Admin → approve/reject sellers, manage disputes, oversee marketplace analytics.
+
+
+
+---
+
+2. Authentication & Security
+
+JWT-based authentication.
+
+Email verification + password reset.
+
+Role-based access control.
+
+Secure document uploads for sellers.
+
+
+
+---
+
+3. Product & Catalog Management
+
+Categories & subcategories.
+
+Product search with filters/sorting.
+
+Multiple product images.
+
+Reviews & ratings by buyers.
+
+
+
+---
+
+4. Cart & Checkout
+
+Add/remove/update cart items.
+
+Multiple shipping addresses.
+
+Select shipping method (standard/express).
+
+Payment via Stripe/PayPal/Mobile Money placeholder.
+
+
+
+---
+
+5. Orders & Shipping
+
+Orders contain buyer, seller, and product(s).
+
+Shipping details: method, carrier, tracking number, estimated delivery.
+
+Order statuses: pending, processing, shipped, in_transit, delivered, cancelled.
+
+Sellers update tracking → buyers track in “My Orders”.
+
+Email notifications for order status updates.
+
+
+
+---
+
+6. Seller Verification Workflow
+
+Seller submits business info + documents (ID, tax cert, license).
+
+Status = pending until admin approves.
+
+Admin reviews → approve/reject.
+
+Only approved sellers can list products.
+
+
+
+---
+
+7. Seller Dashboard (Extended)
+
+Product Management → CRUD products.
+
+Order Management → view orders, update shipping/tracking.
+
+Revenue Dashboard → view total sales, pending balance, withdrawn amount.
+
+Withdraw Earnings:
+
+Sellers can request withdrawal via PayPal or Bank Transfer.
+
+7% platform fee is deducted automatically from every withdrawal.
+
+Example: Seller withdraws $100 → they receive $93, $7 goes to ProAce platform.
+
+
+Withdrawal History → list of past payouts with status (pending, processed, rejected).
+
+
+
+---
+
+8. Admin Dashboard
+
+Approve/reject sellers.
+
+Monitor payouts & revenue split.
+
+Manage disputes & refunds.
+
+Marketplace analytics (total sales, platform revenue, top sellers/products).
+
+
+
+---
+
+🔹 Non-Functional Requirements
+
+Secure handling of payment and withdrawal details.
+
+PCI-compliant if handling credit cards (via Stripe/PayPal APIs).
+
+Encrypted storage of bank details (if supported).
+
+System should scale for global transactions.
+
+
+
+---
+
+🔹 Database Schema (PostgreSQL)
+
+Users Table
+
+id, name, email, password_hash, role, phone, address
+
+
+Sellers Table
+
+id (FK to user), business_name, status, documents, verified_at
+
+
+Products Table
+
+id, seller_id, name, description, price, stock, category, image_url
+
+
+Orders Table
+
+id, buyer_id, seller_id, total_price, shipping_address, method, carrier, tracking_number, status
+
+
+OrderItems Table
+
+id, order_id, product_id, quantity, price
+
+
+Reviews Table
+
+id, user_id, product_id, rating, comment
+
+
+Cart Table
+
+id, user_id, product_id, quantity
+
+
+Withdrawals Table (NEW)
+
+id, seller_id, amount_requested, amount_paid (after 7% fee)
+
+method (paypal/bank)
+
+status (pending, processed, rejected)
+
+transaction_id (from PayPal/Bank API)
+
+created_at, processed_at
+
+
+
+---
+
+🔹 Backend (Flask APIs)
+
+Seller Withdrawals
+
+POST /seller/withdrawals → request payout.
+
+GET /seller/withdrawals → view payout history.
+
+PUT /admin/withdrawals/<id>/process → mark payout as completed.
+
+PUT /admin/withdrawals/<id>/reject → reject payout request.
+
+
+Withdrawal logic:
+
+Calculate platform fee = 7%.
+
+Store amount_paid = amount_requested - (amount_requested * 0.07).
+
+Trigger PayPal/Bank API call for actual payout (future integration).
+
+
+
+---
+
+🔹 Frontend (React Pages)
+
+Buyer
+
+Registration/login, home, products, cart, checkout, orders, reviews.
+
+
+Seller
+
+Registration with document upload.
+
+Seller Dashboard:
+
+Products → Add/Edit/Delete
+
+Orders → Received orders + update shipping
+
+Revenue → Sales summary, pending balance
+
+Withdrawals → Request payout (PayPal/Bank), view history
+
+
+
+Admin
+
+Approve/reject sellers.
+
+Manage products, orders, disputes.
+
+Approve/reject withdrawals.
+
+Marketplace analytics (sales + platform earnings).
+
+
+
+---
+
+⚡ Prompt Usage:
+"Build a full-stack e-commerce platform named ProAce International Shopping with a landing page, buyer/seller/admin roles, authentication, product catalog, cart & checkout, shipping/tracking, seller verification workflow, and seller withdrawals (via PayPal or bank). Implement automatic 7% platform fee deduction from all withdrawals. Use React for frontend, Flask for backend, and PostgreSQL for database. Follow the requirement specification above."
+
+
+---
+
+👉 Do you want me to show you the SQLAlchemy model & Flask route for withdrawals (with 7% fee applied) so you can plug it in directly, or should I prepare the React seller dashboard withdrawal UI mockup first?
+
