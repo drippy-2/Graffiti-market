@@ -259,3 +259,77 @@ def get_all_users():
         
     except Exception as e:
         return jsonify({'message': str(e)}), 500
+
+@admin_bp.route('/orders', methods=['GET'])
+@jwt_required()
+def get_all_orders():
+    try:
+        user = get_current_user()
+        if not user or user.role != 'admin':
+            return jsonify({'message': 'Unauthorized'}), 403
+        
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        status = request.args.get('status')
+        category = request.args.get('category')
+        
+        query = Order.query
+        
+        # Filter by status
+        if status:
+            query = query.filter(Order.status == status)
+        
+        # Filter by category (based on order date ranges or other criteria)
+        if category:
+            if category == 'recent':
+                # Orders from last 7 days
+                from datetime import datetime, timedelta
+                week_ago = datetime.utcnow() - timedelta(days=7)
+                query = query.filter(Order.created_at >= week_ago)
+            elif category == 'high_value':
+                # Orders above $100
+                query = query.filter(Order.total_price > 100)
+            elif category == 'pending_fulfillment':
+                # Orders that need attention
+                query = query.filter(Order.status.in_(['pending', 'processing']))
+            elif category == 'completed':
+                # Completed orders
+                query = query.filter(Order.status == 'delivered')
+            elif category == 'cancelled':
+                # Cancelled orders
+                query = query.filter(Order.status == 'cancelled')
+        
+        orders = query.order_by(Order.created_at.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+        
+        # Calculate order statistics by category
+        total_orders = Order.query.count()
+        pending_orders = Order.query.filter(Order.status.in_(['pending', 'processing'])).count()
+        completed_orders = Order.query.filter_by(status='delivered').count()
+        cancelled_orders = Order.query.filter_by(status='cancelled').count()
+        
+        from datetime import datetime, timedelta
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        recent_orders = Order.query.filter(Order.created_at >= week_ago).count()
+        high_value_orders = Order.query.filter(Order.total_price > 100).count()
+        
+        return jsonify({
+            'orders': [order.to_dict() for order in orders.items],
+            'total': orders.total,
+            'pages': orders.pages,
+            'current_page': page,
+            'categories': {
+                'total': total_orders,
+                'recent': recent_orders,
+                'high_value': high_value_orders,
+                'pending_fulfillment': pending_orders,
+                'completed': completed_orders,
+                'cancelled': cancelled_orders
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500

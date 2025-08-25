@@ -15,7 +15,7 @@ def get_products():
         search = request.args.get('search')
         sort = request.args.get('sort', 'name')
         
-        query = Product.query
+        query = Product.query.join(Seller).filter(Seller.status == 'approved')
         
         # Filter by category
         if category:

@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify,request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import Config
@@ -12,11 +12,11 @@ import os
 
 def create_app():
     app = Flask(__name__)
+    CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
     app.config.from_object(Config)
     
     # Initialize extensions
     db.init_app(app)
-    CORS(app, origins=['http://localhost:5000', 'http://0.0.0.0:5000'])
     jwt = JWTManager(app)
     
     # Register blueprints
@@ -27,6 +27,30 @@ def create_app():
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     
     # Health check endpoint
+    @app.route('/seller/dashboard', methods=['GET'])
+    def seller_dashboard():
+        return jsonify({"message": "Seller dashboard data"}), 200
+
+    products_list = []  # global list to store products
+
+    @app.route('/api/products', methods=['GET'])
+    def products():
+        return jsonify({
+            "products": products_list,
+            "total": len(products_list),
+            "pages": 1,
+            "current_page": 1
+        }), 200
+
+
+    @app.route('/seller/withdrawals', methods=['GET'])
+    def seller_withdrawals():
+        return jsonify({"withdrawals": []}), 200
+
+    @app.route('/orders', methods=['GET'])
+    def orders():
+        return jsonify({"orders": []}), 200
+
     @app.route('/api/health')
     def health_check():
         return jsonify({'status': 'healthy'}), 200

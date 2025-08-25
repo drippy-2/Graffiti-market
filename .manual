@@ -20,7 +20,7 @@ runButton = "Project"
 [[workflows.workflow]]
 name = "Project"
 mode = "parallel"
-author = "agent"
+author = "samsilk"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
@@ -28,7 +28,7 @@ args = "Start application"
 
 [[workflows.workflow]]
 name = "Start application"
-author = "agent"
+author = "samsilk"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
@@ -38,3 +38,6 @@ waitForPort = 5000
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[agent]
+integrations = ["javascript_paypal==1.0.0"]

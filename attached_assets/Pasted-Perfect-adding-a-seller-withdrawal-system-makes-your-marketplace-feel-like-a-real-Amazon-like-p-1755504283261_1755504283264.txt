@@ -11,7 +11,7 @@ Frontend → React (React Router, Redux Toolkit, Axios, Tailwind/Material-UI)
 
 Backend → Flask (REST API with SQLAlchemy, Flask-JWT-Extended)
 
-Database → PostgreSQL
+Database → SQLAlchemy
 
 
 

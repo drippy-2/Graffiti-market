@@ -41,6 +41,7 @@ export default function AdminDashboard() {
   // Queries
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
     queryKey: ['/api/admin/dashboard'],
+    queryFn: () => api.getAdminDashboard(),
     enabled: isAuthenticated && user?.role === 'admin',
   });
 
@@ -59,9 +60,14 @@ export default function AdminDashboard() {
     enabled: isAuthenticated && user?.role === 'admin' && activeTab === 'users',
   });
 
+  const { data: ordersData, isLoading: ordersLoading } = useQuery({
+    queryKey: ['/api/admin/orders'],
+    enabled: isAuthenticated && user?.role === 'admin' && activeTab === 'orders',
+  });
+
   // Mutations
   const approveSellerMutation = useMutation({
-    mutationFn: api.approveSeller,
+    mutationFn: (sellerId: string) => api.approveSeller(sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/sellers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
@@ -77,7 +83,7 @@ export default function AdminDashboard() {
   });
 
   const rejectSellerMutation = useMutation({
-    mutationFn: api.rejectSeller,
+    mutationFn: (sellerId: string) => api.rejectSeller(sellerId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/sellers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/admin/dashboard'] });
@@ -151,6 +157,8 @@ export default function AdminDashboard() {
   const sellers = sellersData?.sellers || [];
   const withdrawals = withdrawalsData?.withdrawals || [];
   const users = usersData?.users || [];
+  const orders = ordersData?.orders || [];
+  const orderCategories = ordersData?.categories || {};
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -200,8 +208,9 @@ export default function AdminDashboard() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+            <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
             <TabsTrigger value="sellers" data-testid="tab-sellers">Sellers</TabsTrigger>
             <TabsTrigger value="withdrawals" data-testid="tab-withdrawals">Withdrawals</TabsTrigger>
             <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
@@ -451,6 +460,148 @@ export default function AdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Orders Tab */}
+          <TabsContent value="orders" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
+              <div className="flex items-center space-x-4">
+                <div className="relative">
+                  <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+                  <Input
+                    placeholder="Search orders..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-64"
+                    data-testid="input-search-orders"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Order Categories */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" data-testid="category-total">
+                <CardContent className="p-4 text-center">
+                  <Package className="h-8 w-8 mx-auto text-graffiti-blue mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{orderCategories.total || 0}</p>
+                  <p className="text-sm text-gray-600">Total Orders</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" data-testid="category-recent">
+                <CardContent className="p-4 text-center">
+                  <Clock className="h-8 w-8 mx-auto text-graffiti-green mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{orderCategories.recent || 0}</p>
+                  <p className="text-sm text-gray-600">Recent (7 days)</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" data-testid="category-high-value">
+                <CardContent className="p-4 text-center">
+                  <DollarSign className="h-8 w-8 mx-auto text-graffiti-orange mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{orderCategories.high_value || 0}</p>
+                  <p className="text-sm text-gray-600">High Value ($100+)</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" data-testid="category-pending">
+                <CardContent className="p-4 text-center">
+                  <AlertTriangle className="h-8 w-8 mx-auto text-graffiti-yellow mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{orderCategories.pending_fulfillment || 0}</p>
+                  <p className="text-sm text-gray-600">Pending</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" data-testid="category-completed">
+                <CardContent className="p-4 text-center">
+                  <CheckCircle className="h-8 w-8 mx-auto text-graffiti-green mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{orderCategories.completed || 0}</p>
+                  <p className="text-sm text-gray-600">Completed</p>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:shadow-md transition-shadow" data-testid="category-cancelled">
+                <CardContent className="p-4 text-center">
+                  <X className="h-8 w-8 mx-auto text-graffiti-red mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">{orderCategories.cancelled || 0}</p>
+                  <p className="text-sm text-gray-600">Cancelled</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Orders List */}
+            {ordersLoading ? (
+              <div className="grid gap-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-6">
+                      <Skeleton className="h-20 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : orders.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders found</h3>
+                  <p className="text-gray-600">No orders have been placed yet</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {orders.map((order: any) => (
+                  <Card key={order.id} data-testid={`order-card-${order.id}`}>
+                    <CardContent className="p-6">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="font-semibold text-gray-900" data-testid={`text-order-id-${order.id}`}>
+                              Order #{order.id.substring(0, 8)}
+                            </h3>
+                            <Badge className={getStatusColor(order.status)} data-testid={`badge-order-status-${order.id}`}>
+                              {formatStatus(order.status)}
+                            </Badge>
+                            {order.totalPrice > 100 && (
+                              <Badge variant="outline" className="bg-orange-100 text-orange-800">
+                                High Value
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="grid md:grid-cols-3 gap-4 text-sm text-gray-600">
+                            <div>
+                              <p><strong>Total:</strong> ${order.totalPrice.toFixed(2)}</p>
+                              <p><strong>Payment:</strong> {order.method}</p>
+                            </div>
+                            <div>
+                              <p><strong>Buyer ID:</strong> {order.buyerId.substring(0, 8)}...</p>
+                              <p><strong>Seller ID:</strong> {order.sellerId.substring(0, 8)}...</p>
+                            </div>
+                            <div>
+                              <p><strong>Date:</strong> {new Date(order.createdAt).toLocaleDateString()}</p>
+                              <p><strong>Items:</strong> {order.items?.length || 0}</p>
+                            </div>
+                          </div>
+                          {order.trackingNumber && (
+                            <div className="mt-2 text-sm">
+                              <p><strong>Tracking:</strong> {order.trackingNumber} ({order.carrier})</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button size="sm" variant="outline" data-testid={`button-view-order-${order.id}`}>
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* Sellers Tab */}

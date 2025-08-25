@@ -64,11 +64,13 @@ export default function SellerDashboard() {
   // Queries
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
     queryKey: ['/api/seller/dashboard'],
+    queryFn: () => api.getSellerDashboard(),
     enabled: isAuthenticated && user?.role === 'seller',
   });
-
+  // Frontend query
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['/api/seller/products'],
+    queryFn: () => api.getSellerProducts(),
     enabled: isAuthenticated && user?.role === 'seller',
   });
 
@@ -105,10 +107,11 @@ export default function SellerDashboard() {
 
   // Mutations
   const createProductMutation = useMutation({
-    mutationFn: api.createProduct,
+    mutationFn: (data) => api.createProduct(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/seller/products'] });
       queryClient.invalidateQueries({ queryKey: ['/api/seller/dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       toast({ title: "Product created successfully" });
       setIsProductDialogOpen(false);
       productForm.reset();

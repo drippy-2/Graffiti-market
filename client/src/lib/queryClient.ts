@@ -10,36 +10,42 @@ async function throwIfResNotOk(res: Response) {
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
+  data?: unknown
+): Promise<any> {
+  const token = localStorage.getItem('access_token'); // Get token from localStorage
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: Object.fromEntries(
+      Object.entries({
+        "Content-Type": data ? "application/json" : undefined,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }).filter(([_, v]) => v !== undefined)
+    ) as HeadersInit,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
   await throwIfResNotOk(res);
-  return res;
+  return res.json();
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
+export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryFunction<T> =
+  ({ on401 }) =>
+    async ({ queryKey }) => {
+      const token = localStorage.getItem('access_token');
+      const url = queryKey.join("/");
 
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (res.status === 401 && on401 === "returnNull") return null;
+
+      await throwIfResNotOk(res);
+      return await res.json();
+    };
 
 export const queryClient = new QueryClient({
   defaultOptions: {

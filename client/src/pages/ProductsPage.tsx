@@ -1,268 +1,237 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { useAuth } from "@/hooks/useAuth";
+import ProductCard from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
-import Navbar from "@/components/Navbar";
-import ProductCard from "@/components/ProductCard";
-import { Search, Filter, Grid, List } from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function ProductsPage() {
-  const [location] = useLocation();
-  const { user, isAuthenticated } = useAuth();
-  const { toast } = useToast();
+  const [, setLocation] = useLocation();
+
+  // filters / state
   const [searchTerm, setSearchTerm] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(""); // empty string = all
   const [sortBy, setSortBy] = useState("name");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
 
-  // Parse URL parameters
+  // load from URL on mount
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.split('?')[1] || '');
-    const search = urlParams.get('search');
-    const cat = urlParams.get('category');
-    
-    if (search) setSearchTerm(search);
-    if (cat) setCategory(cat);
-  }, [location]);
+    const params = new URLSearchParams(window.location.search);
+    setSearchTerm(params.get("search") || "");
+    setCategory(params.get("category") || "");
+    setSortBy(params.get("sort") || "name");
+    setPage(parseInt(params.get("page") || "1", 10));
+  }, []);
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['/api/products', { page, search: searchTerm, category, sort: sortBy }],
-    queryFn: () => api.getProducts({
-      page,
-      per_page: 20,
-      search: searchTerm || undefined,
-      category: category || undefined,
-      sort: sortBy,
-    }),
+  // helper to sync URL
+  const syncUrl = (next: {
+    search?: string;
+    category?: string;
+    sort?: string;
+    page?: number;
+  } = {}) => {
+    const params = new URLSearchParams();
+    const s = next.search ?? searchTerm;
+    const c = next.category ?? category;
+    const so = next.sort ?? sortBy;
+    const p = next.page ?? page;
+
+    if (s) params.set("search", s);
+    if (c) params.set("category", c);
+    if (so) params.set("sort", so);
+    if (p > 1) params.set("page", String(p));
+
+    setLocation(`/products?${params.toString()}`);
+  };
+
+  const onSubmitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    syncUrl({ page: 1 });
+  };
+
+  // reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [category, sortBy]);
+
+  // products query
+  const {
+    data: productsData,
+    isLoading: productsLoading,
+    isFetching: productsFetching,
+    error: productsError,
+  } = useQuery({
+    queryKey: ["/api/products", { page, search: searchTerm, category, sort: sortBy }],
+    queryFn: () =>
+      api.getProducts({
+        page,
+        per_page: 20,
+        search: searchTerm || undefined,
+        category: category || undefined,
+        sort: sortBy,
+      }),
+    keepPreviousData: true,
   });
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['/api/products/categories'],
+  // categories query (returns { categories: string[] })
+  const {
+    data: categoriesResp,
+    isLoading: categoriesLoading,
+    error: categoriesError,
+  } = useQuery({
+    queryKey: ["/api/products/categories"],
     queryFn: () => api.getCategories(),
   });
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-  };
-
-  const handleAddToCart = async (productId: string) => {
-    if (!isAuthenticated) {
-      toast({
-        title: "Login required",
-        description: "Please log in to add items to your cart",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (user?.role !== 'buyer') {
-      toast({
-        title: "Access denied",
-        description: "Only buyers can add items to cart",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await api.addToCart(productId, 1);
-      await queryClient.invalidateQueries({ queryKey: ['/api/orders/cart'] });
-      toast({
-        title: "Added to cart",
-        description: "Product has been added to your cart",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add to cart",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const products = productsData?.products || [];
-  const categories = categoriesData?.categories || [];
+  const categories = categoriesResp?.categories ?? [];
+  const products = productsData?.products ?? [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            <span className="font-bangers text-graffiti-orange">Discover</span> Products
-          </h1>
-          <p className="text-gray-600">Find unique products from verified sellers worldwide</p>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">Products</h1>
+
+      {/* Search & filters */}
+      <form onSubmit={onSubmitSearch} className="flex flex-col gap-4 md:flex-row md:items-end mb-6">
+        <div className="flex-1">
+          <label htmlFor="search" className="sr-only">
+            Search products
+          </label>
+          <Input
+            id="search"
+            placeholder="Search products..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
 
-        {/* Filters and Search */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex flex-col lg:flex-row gap-4 items-end">
-              {/* Search */}
-              <form onSubmit={handleSearch} className="flex-1">
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Search products..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                    data-testid="input-search-products"
-                  />
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                </div>
-              </form>
+        {/* Category filter (no empty string item) */}
+        <Select
+          value={category || "__all__"}
+          onValueChange={(val) => {
+            const next = val === "__all__" ? "" : val;
+            setCategory(next);
+            setPage(1);
+            syncUrl({ category: next, page: 1 });
+          }}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Categories</SelectItem>
+            {categoriesLoading && <SelectItem value="__loading__" disabled>Loading…</SelectItem>}
+            {categoriesError && <SelectItem value="__error__" disabled>Error loading</SelectItem>}
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-              {/* Category Filter */}
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="w-48" data-testid="select-category">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="" data-testid="option-all-categories">All Categories</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat} data-testid={`option-category-${cat}`}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <Select
+          value={sortBy}
+          onValueChange={(val) => {
+            setSortBy(val);
+            setPage(1);
+            syncUrl({ sort: val, page: 1 });
+          }}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">Name</SelectItem>
+            <SelectItem value="price_asc">Price: Low to High</SelectItem>
+            <SelectItem value="price_desc">Price: High to Low</SelectItem>
+            <SelectItem value="newest">Newest First</SelectItem>
+          </SelectContent>
+        </Select>
 
-              {/* Sort */}
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-48" data-testid="select-sort">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name" data-testid="option-sort-name">Name</SelectItem>
-                  <SelectItem value="price_asc" data-testid="option-sort-price-asc">Price: Low to High</SelectItem>
-                  <SelectItem value="price_desc" data-testid="option-sort-price-desc">Price: High to Low</SelectItem>
-                  <SelectItem value="newest" data-testid="option-sort-newest">Newest First</SelectItem>
-                </SelectContent>
-              </Select>
+        <Button type="submit" disabled={productsLoading}>
+          {productsLoading ? "Searching…" : "Search"}
+        </Button>
+      </form>
 
-              {/* View Mode */}
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <Button
-                  variant={viewMode === "grid" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  data-testid="button-grid-view"
-                >
-                  <Grid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                  data-testid="button-list-view"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
+      {/* Status / errors */}
+      {productsError && (
+        <p className="text-sm text-red-600 mb-4">Failed to load products.</p>
+      )}
+      {productsFetching && (
+        <p className="text-sm text-gray-500 mb-2">Updating…</p>
+      )}
 
-              <Button type="submit" onClick={handleSearch} data-testid="button-search">
-                <Filter className="h-4 w-4 mr-2" />
-                Search
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results */}
-        {productsLoading ? (
-          <div className={`grid ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"} gap-6`}>
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <Skeleton className="h-48 w-full mb-4" />
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-2/3 mb-2" />
-                  <Skeleton className="h-6 w-1/3" />
-                </CardContent>
-              </Card>
+      {/* Grid */}
+      {productsLoading && !productsFetching ? (
+        <p>Loading products…</p>
+      ) : products.length === 0 ? (
+        <div className="border rounded-lg p-8 text-center">
+          <p className="text-gray-600">No products found.</p>
+          <Button
+            className="mt-4"
+            onClick={() => {
+              setSearchTerm("");
+              setCategory("");
+              setSortBy("name");
+              setPage(1);
+              syncUrl({ search: "", category: "", sort: "name", page: 1 });
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="mb-3 text-sm text-gray-600">
+            Showing {products.length} of {productsData?.total ?? 0}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {products.map((p: any) => (
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
-        ) : products.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <div className="text-gray-400 mb-4">
-                <Search className="h-16 w-16 mx-auto" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No products found</h3>
-              <p className="text-gray-600">Try adjusting your search criteria or browse all products</p>
-              <Button
-                onClick={() => {
-                  setSearchTerm("");
-                  setCategory("");
-                  setPage(1);
-                }}
-                className="mt-4"
-                data-testid="button-clear-filters"
-              >
-                Clear Filters
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <div className="flex justify-between items-center mb-4">
-              <p className="text-gray-600" data-testid="text-results-count">
-                Showing {products.length} of {productsData?.total || 0} products
-              </p>
-            </div>
+        </>
+      )}
 
-            <div className={`grid ${viewMode === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"} gap-6`}>
-              {products.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  viewMode={viewMode}
-                  onAddToCart={handleAddToCart}
-                  canAddToCart={isAuthenticated && user?.role === 'buyer'}
-                />
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {productsData && productsData.pages > 1 && (
-              <div className="flex justify-center mt-8 space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setPage(Math.max(1, page - 1))}
-                  disabled={page === 1}
-                  data-testid="button-prev-page"
-                >
-                  Previous
-                </Button>
-                <span className="flex items-center px-4 py-2 text-sm text-gray-700">
-                  Page {page} of {productsData.pages}
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={() => setPage(Math.min(productsData.pages, page + 1))}
-                  disabled={page === productsData.pages}
-                  data-testid="button-next-page"
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {/* Pagination */}
+      {productsData && productsData.pages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-8">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const next = Math.max(1, page - 1);
+              setPage(next);
+              syncUrl({ page: next });
+            }}
+            disabled={page === 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm">
+            Page {page} of {productsData.pages}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const next = Math.min(productsData.pages, page + 1);
+              setPage(next);
+              syncUrl({ page: next });
+            }}
+            disabled={page === productsData.pages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

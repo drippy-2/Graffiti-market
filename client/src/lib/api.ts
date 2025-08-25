@@ -1,18 +1,22 @@
 import { User } from '@shared/schema';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   error?: string;
 }
-
 class ApiClient {
+  get(arg0: string): any {
+    throw new Error("Method not implemented.");
+  }
   private token: string | null = null;
+  private baseUrl: string;
 
   constructor() {
     this.token = localStorage.getItem('access_token');
+    this.baseUrl = API_BASE_URL;
   }
 
   setToken(token: string) {
@@ -25,19 +29,20 @@ class ApiClient {
     localStorage.removeItem('access_token');
   }
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`;
-    
-    const headers: HeadersInit = {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    // Automatically prepend /api if not present
+    const url = endpoint.startsWith('http')
+      ? endpoint
+      : `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+
+
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
 
     if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
 
     const config: RequestInit = {
@@ -65,7 +70,7 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     });
-    
+
     this.setToken(data.access_token);
     return data;
   }
@@ -214,9 +219,21 @@ class ApiClient {
     return this.request('/seller/dashboard');
   }
 
-  async getSellerProducts(): Promise<{ products: any[] }> {
-    return this.request('/seller/products');
+  async getSellerProducts() {
+    const token = localStorage.getItem('access_token'); // get JWT
+    if (!token) throw new Error('No access token found');
+
+    const res = await fetch('http://localhost:5000/api/seller/products', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!res.ok) throw new Error('Failed to fetch products');
+    return res.json(); // { products: [...] }
   }
+
 
   async getWithdrawals(): Promise<{ withdrawals: any[] }> {
     return this.request('/seller/withdrawals');
@@ -261,7 +278,7 @@ class ApiClient {
       }
     });
 
-    return this.request(`/admin/sellers?${query}`);
+    return this.request(`/api/admin/sellers?${query}`);
   }
 
   async approveSeller(sellerId: string): Promise<{ message: string; seller: any }> {
