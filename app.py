@@ -31,8 +31,6 @@ def create_app():
     def seller_dashboard():
         return jsonify({"message": "Seller dashboard data"}), 200
 
-    products_list = []  # global list to store products
-
     @app.route('/api/products', methods=['GET'])
     def products():
         return jsonify({
